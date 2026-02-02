@@ -735,6 +735,8 @@ class Tachy2Gis:
     def update_renderer(self):
         self.vtkLayerCleanUp()
         for layer in QgsProject.instance().layerTreeRoot().findLayers():
+            if not layer.layer():
+                continue
             if layer.layer().type() == QgsMapLayerType.RasterLayer:
                 continue
             if layer.layer().geometryType == QgsWkbTypes.NullGeometry:
@@ -761,9 +763,8 @@ class Tachy2Gis:
         self.setPickable()
 
     # remove layers if they are not in the layer legend
-    # todo: qgsLayerIds None type has no .id() when loading project while t2g is open
     def vtkLayerCleanUp(self):
-        qgsLayerIds = [layer.layer().id() for layer in QgsProject.instance().layerTreeRoot().findLayers()]
+        qgsLayerIds = QgsProject.instance().layerTreeRoot().findLayerIds()
         vtkDict = self.vtk_widget.layers.copy()
         for vtkLayerId, actor in vtkDict.items():
             if vtkLayerId not in qgsLayerIds:
