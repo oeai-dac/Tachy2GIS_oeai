@@ -1,4 +1,4 @@
-**Important note:** this version has been specifically adapted to the needs of the Austrian Archaeological Institute. For example, certain functions have been removed or commented out (e.g. robotic total station), or automated (e.g. log file).
+**Important note: this version has been specifically adapted to the needs of the Austrian Archaeological Institute. For example, certain functions have been removed or commented out (e.g. robotic total station), or automated (e.g. log file). For newest developments please use the original version from "Landesamt-fuer-Archaeologie-Sachsen"**
 
 **Dependencies:** The Tachy2GIS 3D-Viewer requires vtk to run. If you don't have it already (test this by typing `import vtk` in a python console), see **Installation**. Alternatively you can use pipenv to handle the dependencies for you, see the section **Developer Notes** further down for more info on this.* Note that the python vtk library only provides a wrapper around the actual vtk installation Also required is [tachyconnect](https://github.com/gbv/tachyconnect), which will handle the connection to the total station. It can be installed via pip.
 
