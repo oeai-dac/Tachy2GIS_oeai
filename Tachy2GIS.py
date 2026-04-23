@@ -23,6 +23,7 @@
 from cmath import log
 from os.path import basename
 from unittest import result
+from datetime import date
 
 #from T2G.gc_constants import TMC_DoMeasure
 from . import resources
@@ -41,7 +42,7 @@ import os, sys, glob
 import gc as garbagecollector
 from PyQt5.QtSerialPort import QSerialPortInfo, QSerialPort
 from PyQt5.QtWidgets import QAction, QHeaderView, QDialog, QFileDialog, QSizePolicy, QVBoxLayout, QLineEdit,\
-    QPushButton, QProgressDialog, QProgressBar, qApp, QLabel
+    QPushButton, QProgressDialog, QProgressBar, qApp, QLabel, QApplication
 from PyQt5.QtCore import QSettings, QItemSelectionModel, QTranslator, QCoreApplication, QThread, qVersion, Qt,\
     QEvent, QObject, pyqtSignal, QTimer
 from PyQt5.QtGui import QIcon
@@ -65,7 +66,6 @@ from tachyconnect.ReplyHandler import ReplyHandler
 from tachyconnect.ts_control import MessageQueue, Dispatcher, CommunicationConstants
 from tachyconnect.GSI_Parser import make_vertex
 from tachyconnect.TachyRequest import TMC_GetCoordinate, TMC_DoMeasure, TMC_GetHeight, TMC_SetHeight
-from tachyconnect.TachyJoystick import TachyJoystick
 import tachyconnect.gc_constants as gc
 
 def make_axes_actor(scale, xyzLabels):
@@ -160,7 +160,7 @@ class Tachy2Gis:
 
 
         #tachyJoystick
-        self.tachy_joystick_dlg = TachyJoystick(self.dispatcher, self.dlg, Qt.Dialog | Qt.Tool)
+        #self.tachy_joystick_dlg = TachyJoystick(self.dispatcher, self.dlg, Qt.Dialog | Qt.Tool)
         # custom QLineEdit
         self.refHeightLineEdit = SignalizingLineEdit()
         self.refHeightLineEdit.hide()
@@ -198,10 +198,13 @@ class Tachy2Gis:
 
     def request_coordinates(self, *args):
         self.dispatcher.send(TMC_GetCoordinate(args=('1000', '1')).get_geocom_command())
+        #self.dispatcher.send(TMC_GetCoordinate(args=(gc.TMC_MEASURE_PRG.TMC_DEF_DIST.value, gc.TMC_INCLINE_PRG.TMC_AUTO_INC.value)).get_geocom_command())
 
     def coordinates_received(self, *args):
         print("Args: ", args)
-        log_file_name = self.dlg.select_log_file.toolTip()
+        #print(line)
+        date_today = date.today()
+        log_file_name = QgsProject.instance().homePath() + '/LOGFILE_Messungen_%s.txt' %date_today
         if log_file_name and not log_file_name.startswith('Log-Datei'):
             with open(log_file_name, 'a') as log_file:
                 log_file.write(f"{str(args)}\n")
@@ -213,7 +216,7 @@ class Tachy2Gis:
             new_vtx = list(map(float, args[1:4]))
 
             self.vtk_mouse_interactor_style.add_vertex(new_vtx)
-            self.dlg.coords.setText(f"{new_vtx}")
+            self.dlg.coords.setText(f" {new_vtx}")
             self.vtk_mouse_interactor_style.draw()
             self.autozoom(0)
         else:
@@ -228,15 +231,19 @@ class Tachy2Gis:
 
     def vertex_received(self, line):
         print(line)
+        punktnr_tmp = line[10:24]
+        punktnr = punktnr_tmp.lstrip("0")
         if line.startswith(CommunicationConstants.GEOCOM_REPLY_PREFIX):
                 return
-        log_file_name = self.dlg.select_log_file.toolTip()
-        if log_file_name and not log_file_name.startswith('Log-Datei'):
-            with open(log_file_name, 'a') as log_file:
-                log_file.write(line)
+        date_today = date.today()
+        log_file_name = QgsProject.instance().homePath() + '/LOGFILE_Messungen_%s.txt' %date_today
         new_vtx = make_vertex(line)
         self.vtk_mouse_interactor_style.add_vertex(new_vtx)
-        self.dlg.coords.setText(f"{new_vtx}")
+        
+        self.dlg.coords.setText(f" {punktnr} {new_vtx}")
+        if log_file_name and not log_file_name.startswith('Log-Datei'):
+            with open(log_file_name, 'a') as log_file:
+                log_file.write("pkt nr: " + punktnr + "\tKoordinaten: " + str(new_vtx) + "\tWinkel: " + line)
         self.vtk_mouse_interactor_style.draw()
         self.autozoom(0)
 
@@ -249,7 +256,7 @@ class Tachy2Gis:
         # show controls
         self.refHeightLineEdit.show()
         self.refHeightStatusLabel.show()
-        self.dlg.tachyJoystick.show()
+        #self.dlg.tachyJoystick.show()
         # start requesting reflector height
         self.refHeightStatus.start()
 
@@ -262,7 +269,7 @@ class Tachy2Gis:
         # hide controls when disconnected
         self.refHeightLineEdit.hide()
         self.refHeightStatusLabel.hide()
-        self.dlg.tachyJoystick.hide()
+        #self.dlg.tachyJoystick.hide()
         # stop requesting reflector height
         self.refHeightStatus.stop()
 
@@ -272,6 +279,10 @@ class Tachy2Gis:
 
     def dump(self):
         vertices = self.vtk_mouse_interactor_style.vertices
+        text = self.dlg.coords.text()
+        #print(text)
+        clipboard = QApplication.clipboard()
+        clipboard.setText(text)
         if len(vertices) == 0:
             iface.messageBar().pushMessage(self.tr("Fehler: "), self.tr("Keine Punkte vorhanden!"), Qgis.Warning, 5)
             return
@@ -321,16 +332,16 @@ class Tachy2Gis:
         self.dlg.closingPlugin.disconnect(self.onCloseCleanup)
         # disconnect setupControls
         self.dlg.tachy_connect_button.clicked.disconnect()
-        self.dlg.select_log_file.clicked.disconnect()
+        #self.dlg.select_log_file.clicked.disconnect()
         self.dlg.dumpButton.clicked.disconnect()
-        self.dlg.traceButton.clicked.disconnect()
+        #self.dlg.traceButton.clicked.disconnect()
         self.dlg.deleteVertexButton.clicked.disconnect()
         self.vtk_mouse_interactor_style.point_added.signal.disconnect(self.point_added)
         #self.dlg.setRefHeight.returnPressed.disconnect()
         self.dlg.zoomResetButton.clicked.disconnect()
         self.availability_watchdog.serial_available.disconnect()
         self.dlg.loadPointCloud.clicked.disconnect()
-        self.dlg.sourceLayerComboBox.layerChanged.disconnect()
+        #self.dlg.sourceLayerComboBox.layerChanged.disconnect()
         self.dlg.targetLayerComboBox.layerChanged.disconnect()
         self.dlg.zoomModeComboBox.activated.disconnect(self.autozoom)
         QgsProject.instance().layerTreeRoot().visibilityChanged.disconnect(self.update_renderer)
@@ -354,8 +365,8 @@ class Tachy2Gis:
         print('Signals disconnected!')
 
     # switch target layer to source layer when changing source layer
-    def switchTargetLayer(self):
-        self.dlg.targetLayerComboBox.setLayer(self.dlg.sourceLayerComboBox.currentLayer())
+    #def switchTargetLayer(self):
+        #self.dlg.targetLayerComboBox.setLayer(self.dlg.sourceLayerComboBox.currentLayer())
 
     def setActiveLayer(self):
         if Qt is None:
@@ -377,16 +388,6 @@ class Tachy2Gis:
             # self.tachyReader.setPort(port)
             # connect_beep(port)
 
-    # TODO: Log default path QgsProject.instance().homePath()?
-    def set_log(self):
-        logFileName = QFileDialog.getSaveFileName(None,
-                                                  self.tr('Log-Datei speichern...'),
-                                                  QgsProject.instance().homePath(),
-                                                  'Text (*.txt)',
-                                                  '*.txt')[0]
-        self.dlg.select_log_file.setToolTip(logFileName)
-        # self.tachyReader.setLogfile(logFileName)
-
     def dumpEnabled(self):
         verticesAvailable = (len(self.vtk_mouse_interactor_style.vertices) > 0)
         # Selecting a target layer while there are no vertices in the vertex list may cause segfaults. To avoid this,
@@ -403,10 +404,10 @@ class Tachy2Gis:
         if index == 6: # Off
             return
 
-        if self.dlg.sourceLayerComboBox.currentLayer() == self.dlg.targetLayerComboBox.currentLayer():
-            current_layer = self.dlg.sourceLayerComboBox.currentLayer()
-        else:
-            current_layer = self.dlg.targetLayerComboBox.currentLayer()
+        #if self.dlg.sourceLayerComboBox.currentLayer() == self.dlg.targetLayerComboBox.currentLayer():
+            #current_layer = self.dlg.sourceLayerComboBox.currentLayer()
+        #else:
+        current_layer = self.dlg.targetLayerComboBox.currentLayer()
         if current_layer is None:
             return
         if "⛅" in current_layer.name() and index == 1:
@@ -559,26 +560,26 @@ class Tachy2Gis:
         QgsProject.instance().addMapLayer(pcLayer)
         del progress
 
-    def setPickable(self):
-        source_layer = self.dlg.sourceLayerComboBox.currentLayer()
-        if source_layer is None:
-            return
-        for stuff in self.vtk_widget.layers.items():
-            qgs_id, layer = stuff[:2]
-            if len(stuff) > 2:
-                raise ValueError(f"Too much stuff: {str(stuff)} in {str(self.vtk_widget.layers)}")
-            if " ⛅   " + qgs_id in source_layer.id():
-                layer.PickableOn()
-                continue
-            if source_layer.type() == QgsMapLayerType.RasterLayer:  # skip raster
-                continue
-            if source_layer.geometryType() == QgsWkbTypes.NullGeometry:  # excel sheet
-                continue
-
-            layer.set_pickability(qgs_id == source_layer.id())
-            layer.set_highlight(qgs_id == source_layer.id())
-
-        self.vtk_widget.refresh_content()
+#    def setPickable(self):
+#        source_layer = self.dlg.sourceLayerComboBox.currentLayer()
+#        if source_layer is None:
+#            return
+#        for stuff in self.vtk_widget.layers.items():
+#            qgs_id, layer = stuff[:2]
+#            if len(stuff) > 2:
+#                raise ValueError(f"Too much stuff: {str(stuff)} in {str(self.vtk_widget.layers)}")
+#            if " ⛅   " + qgs_id in source_layer.id():
+#                layer.PickableOn()
+#                continue
+#            if source_layer.type() == QgsMapLayerType.RasterLayer:  # skip raster
+#                continue
+#            if source_layer.geometryType() == QgsWkbTypes.NullGeometry:  # excel sheet
+#                continue
+#
+#            layer.set_pickability(qgs_id == source_layer.id())
+#            layer.set_highlight(qgs_id == source_layer.id())
+#
+#        self.vtk_widget.refresh_content()
 
     def request_ref_height(self):
         self.dispatcher.send(TMC_GetHeight(args=()).get_geocom_command())
@@ -641,7 +642,7 @@ class Tachy2Gis:
         self.reply_handler.register_command(TMC_DoMeasure, self.request_coordinates)
         self.reply_handler.register_command(TMC_GetHeight, self.dlg_set_ref_height)
 
-        self.dlg.select_log_file.clicked.connect(self.set_log)
+        #self.dlg.select_log_file.clicked.connect(self.set_log)
         # stop polling on LineEdit focus
         self.refHeightLineEdit.got_focus.connect(self.ref_height_stop_poll)
         self.refHeightStatus.ref_height_get.connect(self.request_ref_height)
@@ -654,19 +655,19 @@ class Tachy2Gis:
         self.dlg.dumpButton.clicked.connect(self.dump)
         self.dlg.deleteVertexButton.clicked.connect(self.vtk_mouse_interactor_style.remove_selected)
         self.dlg.loadPointCloud.clicked.connect(self.loadPointCloud)
-        self.dlg.traceButton.clicked.connect(self.vtk_mouse_interactor_style.trace)
+        #self.dlg.traceButton.clicked.connect(self.vtk_mouse_interactor_style.trace)
 
         # self.dlg.vertexTableView.setModel(self.vertexList)
         # self.dlg.vertexTableView.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         # self.dlg.vertexTableView.setSelectionModel(QItemSelectionModel(self.vertexList))
         # self.dlg.vertexTableView.selectionModel().selectionChanged.connect(self.mapTool.selectVertex)
 
-        self.dlg.sourceLayerComboBox.setFilters(QgsMapLayerProxyModel.VectorLayer | QgsMapLayerProxyModel.WritableLayer)
-        self.dlg.sourceLayerComboBox.setExcludedProviders(["delimitedtext"])
-        self.dlg.sourceLayerComboBox.setLayer(self.iface.activeLayer())
-        self.dlg.sourceLayerComboBox.layerChanged.connect(self.setPickable)
-        self.dlg.sourceLayerComboBox.layerChanged.connect(self.switchTargetLayer)
-        self.dlg.sourceLayerComboBox.layerChanged.connect(self.autozoom)
+        #self.dlg.sourceLayerComboBox.setFilters(QgsMapLayerProxyModel.VectorLayer | QgsMapLayerProxyModel.WritableLayer)
+        #self.dlg.sourceLayerComboBox.setExcludedProviders(["delimitedtext"])
+        #self.dlg.sourceLayerComboBox.setLayer(self.iface.activeLayer())
+        #self.dlg.sourceLayerComboBox.layerChanged.connect(self.setPickable)
+        #self.dlg.sourceLayerComboBox.layerChanged.connect(self.switchTargetLayer)
+        #self.dlg.sourceLayerComboBox.layerChanged.connect(self.autozoom)
 
         self.dlg.targetLayerComboBox.layerChanged.connect(self.setActiveLayer)
         self.dlg.targetLayerComboBox.setFilters(QgsMapLayerProxyModel.VectorLayer)
@@ -675,7 +676,7 @@ class Tachy2Gis:
         self.dlg.zoomResetButton.clicked.connect(self.resetVtkCameraTop)
 
         self.dlg.zoomModeComboBox.activated.connect(self.autozoom)
-        self.dlg.zoomModeComboBox.setCurrentIndex(6)  # start with autozoom off
+        self.dlg.zoomModeComboBox.setCurrentIndex(0)  # start with 'Letzter Punkt'
 
         self.availability_watchdog.serial_available.connect(self.tachy_available)
 
@@ -684,7 +685,6 @@ class Tachy2Gis:
         self.dispatcher.serial_connected.connect(self.tachy_connected)
         self.dispatcher.serial_disconnected.connect(self.tachy_disconnected)
         self.dlg.tachy_connect_button.clicked.connect(self.dispatcher.hook_up)
-        self.dlg.tachyJoystick.clicked.connect(self.show_joystick)
 
         # custom QLineEdit with focus event
         self.dlg.horizontalLayout.insertWidget(10, self.refHeightLineEdit)
@@ -735,8 +735,6 @@ class Tachy2Gis:
     def update_renderer(self):
         self.vtkLayerCleanUp()
         for layer in QgsProject.instance().layerTreeRoot().findLayers():
-            if not layer.layer():
-                continue
             if layer.layer().type() == QgsMapLayerType.RasterLayer:
                 continue
             if layer.layer().geometryType == QgsWkbTypes.NullGeometry:
@@ -760,11 +758,12 @@ class Tachy2Gis:
                         self.vtk_widget.layers.pop(layer.layer().id())
         self.vtk_widget.refresh_content()
         self.vtk_widget.renderer.ResetCameraClippingRange()
-        self.setPickable()
+        #self.setPickable()
 
     # remove layers if they are not in the layer legend
+    # todo: qgsLayerIds None type has no .id() when loading project while t2g is open
     def vtkLayerCleanUp(self):
-        qgsLayerIds = QgsProject.instance().layerTreeRoot().findLayerIds()
+        qgsLayerIds = [layer.layer().id() for layer in QgsProject.instance().layerTreeRoot().findLayers()]
         vtkDict = self.vtk_widget.layers.copy()
         for vtkLayerId, actor in vtkDict.items():
             if vtkLayerId not in qgsLayerIds:
@@ -903,9 +902,6 @@ class Tachy2Gis:
                 self.setupControls()
 
             self.setupControls()
-
-            # hide joystick until connected
-            self.dlg.tachyJoystick.hide()
 
             self.availability_watchdog.start()
             # self.tachyReader.beginListening()

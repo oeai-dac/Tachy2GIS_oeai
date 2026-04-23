@@ -380,7 +380,7 @@ def parse(line):
         # The first two places define the content of a part, which in turn defines the data type of the value
         label = dict_labels[identifier]
         baseType = dict_formats[identifier]
-        units[label] = dict_units_attributes_digits[unitInfo]
+        #units[label] = dict_units_attributes_digits[unitInfo]
         try:
             # strings are simple, the require no further treatment before passing on, so they are exempt from processing:
             if not baseType == "TEXT":
